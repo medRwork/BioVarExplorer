@@ -30,7 +30,7 @@ docker stop gatk_bcftools
 docker stop bioconductor_vcf
 # Таблица 3. Перечень команд оболочки Linux для выравнивания, вызова вариантов и их фильтрации по выбранным показателям качества
 bwa index GCF_000001405.40_GRCh38.p14_genomic.fna
-bwa mem -t 8 -R '@RG\tID:Sample1\tLB:Lib1\tPL:Illumina\tPU:Unit1\tSM:SampleName' GCF_000001405.40_GRCh38.p14_genomic.fna PID25001.fastq > output_PID25001.sam
+bwa mem -t 8 -R '@RG\tID:SMP001\tLB:LBR001\tPL:NovaSeq6000\tPU:NS5001234\tSM:Human-SampleA' GCF_000001405.40_GRCh38.p14_genomic.fna PID25001.fastq > output_PID25001.sam
 samtools view -Sb output_PID25001.sam > output_PID25001.bam
 samtools sort output_PID25001.bam -o sorted_PID25001.bam
 samtools index sorted_PID25001.bam
