@@ -1,0 +1,44 @@
+# Объединение файлов
+zcat S0001_L0*_R*.fq.gz > S0001_merged_LO.fastq
+# Таблица 1. Команды оболочки Linux для деперсонификации .fastq-файлов
+IDENTIFIER="PID25001"
+ORIGINAL_FILE="S0001_merged_LO.fastq"
+NEW_FILE="${IDENTIFIER}.fastq"
+sed -E 's/_([[:digit:]]{9})/_000000001/g' "$ORIGINAL_FILE" | sed -E 's/_([[:alnum:]]{21})_/_XXXXXXXXX_/g' > "$NEW_FILE"
+echo "Новый файл успешно создан: $NEW_FILE"
+grep '^@' "$ORIGINAL_FILE" | head -n 1
+grep '^@' "$NEW_FILE" | head -n 1
+# Создание выборки по количеству прочтений в качестве нового файла.
+head -n 1000000 PID25001.fastq > subset1M_PID25001.fastq
+# Таблица 2.Перечень команд загрузки, запуска и настройки рабочей среды
+sudo usermod -aG docker "$USER"
+newgrp docker
+sudo mkdir -p bind && sudo chown "$USER" ~/bind
+docker pull staphb/bwa
+docker pull broadinstitute/gatk
+docker pull bioconductor/bioconductor_docker
+docker run -it --rm -v "$(pwd)/bind":/data --name bwa_ubuntu staphb/bwa:latest sh
+docker run -it --rm -v "$(pwd)/bind":/data --name gatk_ubuntu broadinstitute/gatk:latest sh
+apt-get update && apt-get install -y bcftools
+docker ps
+docker commit -p 59d1f8ee2b89 gatk/bcftools:ver1
+docker run -it --rm -v "$(pwd)/bind":/data --name gatk_bcftools gatk/bcftools:ver1 sh
+docker run -e PASSWORD=bioc -p 8888:8787 --mount type=bind,source="$(pwd)"/bind,destination=/home/rstudio/R/bind --name bioconductor_vcf bioconductor/bioconductor_docker:latest
+BiocManager::install(c("Biostrings", "GenomicFeatures", "VariantAnnotation", "org.Hs.eg.db", "Bsgenome.Hsapiens.UCSC.hg38", "TxDb.Hsapiens.UCSC.hg38.knownGene", "SNPlocs.Hsapiens.dbSNP155.GRCh38"))
+docker stop bwa_ubuntu
+docker stop gatk_bcftools
+docker stop bioconductor_vcf
+# Таблица 3. Перечень команд оболочки Linux для выравнивания, вызова вариантов и их фильтрации по выбранным показателям качества
+bwa index GCF_000001405.40_GRCh38.p14_genomic.fna
+bwa mem -t 8 -R '@RG\tID:Sample1\tLB:Lib1\tPL:Illumina\tPU:Unit1\tSM:SampleName' GCF_000001405.40_GRCh38.p14_genomic.fna PID25001.fastq > output_PID25001.sam
+samtools view -Sb output_PID25001.sam > output_PID25001.bam
+samtools sort output_PID25001.bam -o sorted_PID25001.bam
+samtools index sorted_PID25001.bam
+samtools view -H sorted_PID25001.bam
+samtools faidx GCF_000001405.40_GRCh38.p14_genomic.fna
+samtools dict GCF_000001405.40_GRCh38.p14_genomic.fna > GCF_000001405.40_GRCh38.p14_genomic.dict
+gatk HaplotypeCaller -R GCF_000001405.40_GRCh38.p14_genomic.fna -I sorted_PID25001.bam -O variants_PID25001.vcf --native-pair-hmm-threads 8
+bcftools query -f '%CHROM\n' variants_PID25001.vcf | sort | uniq
+bcftools annotate --rename-chrs rename_NCToChr.txt variants_PID25001.vcf > renamed_variants_PID25001.vcf
+bcftools filter -s LowQual -S . -e 'QUAL < 30 || FORMAT/DP < 20 || MQ < 40 || QD < 2' renamed_variants_PID25001.vcf > filt_PID25001_FORMAT-DP.vcf
+bcftools view -f PASS filt_PID25001_FORMAT-DP.vcf > fin_filt_FDP_PID25001.vcf
